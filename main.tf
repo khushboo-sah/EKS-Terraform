@@ -1,56 +1,58 @@
 provider "aws" {
-  region = "ap-south-1"
+  region = "eu-north-1"
 }
 
-resource "aws_vpc" "devopsshack_vpc" {
+# -------------------- VPC --------------------
+resource "aws_vpc" "khushboo_vpc" {
   cidr_block = "10.0.0.0/16"
 
   tags = {
-    Name = "devopsshack-vpc"
+    Name = "khushboo-vpc"
   }
 }
 
-resource "aws_subnet" "devopsshack_subnet" {
+resource "aws_subnet" "khushboo_subnet" {
   count = 2
-  vpc_id                  = aws_vpc.devopsshack_vpc.id
-  cidr_block              = cidrsubnet(aws_vpc.devopsshack_vpc.cidr_block, 8, count.index)
-  availability_zone       = element(["ap-south-1a", "ap-south-1b"], count.index)
+  vpc_id                  = aws_vpc.khushboo_vpc.id
+  cidr_block              = cidrsubnet(aws_vpc.khushboo_vpc.cidr_block, 8, count.index)
+  availability_zone       = element(["eu-north-1a", "eu-north-1b"], count.index)
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "devopsshack-subnet-${count.index}"
+    Name = "khushboo-subnet-${count.index}"
   }
 }
 
-resource "aws_internet_gateway" "devopsshack_igw" {
-  vpc_id = aws_vpc.devopsshack_vpc.id
+resource "aws_internet_gateway" "khushboo_igw" {
+  vpc_id = aws_vpc.khushboo_vpc.id
 
   tags = {
-    Name = "devopsshack-igw"
+    Name = "khushboo-igw"
   }
 }
 
-resource "aws_route_table" "devopsshack_route_table" {
-  vpc_id = aws_vpc.devopsshack_vpc.id
+resource "aws_route_table" "khushboo_route_table" {
+  vpc_id = aws_vpc.khushboo_vpc.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.devopsshack_igw.id
+    gateway_id = aws_internet_gateway.khushboo_igw.id
   }
 
   tags = {
-    Name = "devopsshack-route-table"
+    Name = "khushboo-route-table"
   }
 }
 
-resource "aws_route_table_association" "a" {
+resource "aws_route_table_association" "khushboo_rta" {
   count          = 2
-  subnet_id      = aws_subnet.devopsshack_subnet[count.index].id
-  route_table_id = aws_route_table.devopsshack_route_table.id
+  subnet_id      = aws_subnet.khushboo_subnet[count.index].id
+  route_table_id = aws_route_table.khushboo_route_table.id
 }
 
-resource "aws_security_group" "devopsshack_cluster_sg" {
-  vpc_id = aws_vpc.devopsshack_vpc.id
+# -------------------- Security Groups --------------------
+resource "aws_security_group" "khushboo_cluster_sg" {
+  vpc_id = aws_vpc.khushboo_vpc.id
 
   egress {
     from_port   = 0
@@ -60,12 +62,12 @@ resource "aws_security_group" "devopsshack_cluster_sg" {
   }
 
   tags = {
-    Name = "devopsshack-cluster-sg"
+    Name = "khushboo-cluster-sg"
   }
 }
 
-resource "aws_security_group" "devopsshack_node_sg" {
-  vpc_id = aws_vpc.devopsshack_vpc.id
+resource "aws_security_group" "khushboo_node_sg" {
+  vpc_id = aws_vpc.khushboo_vpc.id
 
   ingress {
     from_port   = 0
@@ -82,25 +84,30 @@ resource "aws_security_group" "devopsshack_node_sg" {
   }
 
   tags = {
-    Name = "devopsshack-node-sg"
+    Name = "khushboo-node-sg"
   }
 }
 
-resource "aws_eks_cluster" "devopsshack" {
-  name     = "devopsshack-cluster"
-  role_arn = aws_iam_role.devopsshack_cluster_role.arn
+# -------------------- EKS Cluster --------------------
+resource "aws_eks_cluster" "khushboo_cluster" {
+  name     = "khushboo-cluster"
+  role_arn = aws_iam_role.khushboo_cluster_role.arn
 
   vpc_config {
-    subnet_ids         = aws_subnet.devopsshack_subnet[*].id
-    security_group_ids = [aws_security_group.devopsshack_cluster_sg.id]
+    subnet_ids         = aws_subnet.khushboo_subnet[*].id
+    security_group_ids = [aws_security_group.khushboo_cluster_sg.id]
+  }
+
+  tags = {
+    Name = "khushboo-cluster"
   }
 }
 
-resource "aws_eks_node_group" "devopsshack" {
-  cluster_name    = aws_eks_cluster.devopsshack.name
-  node_group_name = "devopsshack-node-group"
-  node_role_arn   = aws_iam_role.devopsshack_node_group_role.arn
-  subnet_ids      = aws_subnet.devopsshack_subnet[*].id
+resource "aws_eks_node_group" "khushboo_node_group" {
+  cluster_name    = aws_eks_cluster.khushboo_cluster.name
+  node_group_name = "khushboo-node-group"
+  node_role_arn   = aws_iam_role.khushboo_node_group_role.arn
+  subnet_ids      = aws_subnet.khushboo_subnet[*].id
 
   scaling_config {
     desired_size = 3
@@ -108,16 +115,21 @@ resource "aws_eks_node_group" "devopsshack" {
     min_size     = 3
   }
 
-  instance_types = ["t2.medium"]
+  instance_types = ["t3.medium"]
 
   remote_access {
     ec2_ssh_key = var.ssh_key_name
-    source_security_group_ids = [aws_security_group.devopsshack_node_sg.id]
+    source_security_group_ids = [aws_security_group.khushboo_node_sg.id]
+  }
+
+  tags = {
+    Name = "khushboo-node-group"
   }
 }
 
-resource "aws_iam_role" "devopsshack_cluster_role" {
-  name = "devopsshack-cluster-role"
+# -------------------- IAM Roles --------------------
+resource "aws_iam_role" "khushboo_cluster_role" {
+  name = "khushboo-cluster-role"
 
   assume_role_policy = <<EOF
 {
@@ -135,13 +147,13 @@ resource "aws_iam_role" "devopsshack_cluster_role" {
 EOF
 }
 
-resource "aws_iam_role_policy_attachment" "devopsshack_cluster_role_policy" {
-  role       = aws_iam_role.devopsshack_cluster_role.name
+resource "aws_iam_role_policy_attachment" "khushboo_cluster_role_policy" {
+  role       = aws_iam_role.khushboo_cluster_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
-resource "aws_iam_role" "devopsshack_node_group_role" {
-  name = "devopsshack-node-group-role"
+resource "aws_iam_role" "khushboo_node_group_role" {
+  name = "khushboo-node-group-role"
 
   assume_role_policy = <<EOF
 {
@@ -159,17 +171,17 @@ resource "aws_iam_role" "devopsshack_node_group_role" {
 EOF
 }
 
-resource "aws_iam_role_policy_attachment" "devopsshack_node_group_role_policy" {
-  role       = aws_iam_role.devopsshack_node_group_role.name
+resource "aws_iam_role_policy_attachment" "khushboo_node_group_worker_policy" {
+  role       = aws_iam_role.khushboo_node_group_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
 }
 
-resource "aws_iam_role_policy_attachment" "devopsshack_node_group_cni_policy" {
-  role       = aws_iam_role.devopsshack_node_group_role.name
+resource "aws_iam_role_policy_attachment" "khushboo_node_group_cni_policy" {
+  role       = aws_iam_role.khushboo_node_group_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
 }
 
-resource "aws_iam_role_policy_attachment" "devopsshack_node_group_registry_policy" {
-  role       = aws_iam_role.devopsshack_node_group_role.name
+resource "aws_iam_role_policy_attachment" "khushboo_node_group_ecr_policy" {
+  role       = aws_iam_role.khushboo_node_group_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
